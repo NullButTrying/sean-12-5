@@ -1,0 +1,63 @@
+name: 12-5 Caster Stream (6+6 Split)
+
+on:
+  schedule:
+    - cron: '0 8 * * 1-5'
+    - cron: '0 14 * * 1-5'
+  workflow_dispatch:
+
+concurrency:
+  group: caster-radio-stream
+  cancel-in-progress: true
+
+jobs:
+  broadcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 358
+
+    steps:
+      - name: Download MP3s from Repo
+        uses: actions/checkout@v4
+
+      - name: Install Ezstream
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ezstream
+
+      - name: Create Playlist & Config
+        run: |
+          find "$PWD" -type f -iname "*.mp3" > playlist.m3u
+          cat <<EOF > ezstream.xml
+          <?xml version="1.0" encoding="UTF-8"?>
+          <ezstream>
+            <servers>
+              <server>
+                <hostname>${{ secrets.CASTER_HOST }}</hostname>
+                <port>${{ secrets.CASTER_PORT }}</port>
+                <username>source</username>
+                <password>${{ secrets.CASTER_PASS }}</password>
+                <protocol>http</protocol>
+              </server>
+            </servers>
+            <streams>
+              <stream>
+                <mountpoint>/${{ secrets.CASTER_MOUNT }}</mountpoint>
+                <format>MP3</format>
+                <stream_name>Automated Radio</stream_name>
+                <stream_bitrate>96</stream_bitrate>
+              </stream>
+            </streams>
+            <intakes>
+              <intake>
+                <type>playlist</type>
+                <filename>playlist.m3u</filename>
+                <shuffle>Yes</shuffle>
+                <stream_once>No</stream_once>
+              </intake>
+            </intakes>
+          </ezstream>
+          EOF
+          chmod 600 ezstream.xml
+
+      - name: Stream to Caster.fm
+        run: ezstream -c ezstream.xml
