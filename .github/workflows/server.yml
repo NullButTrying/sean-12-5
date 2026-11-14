@@ -19,58 +19,10 @@ jobs:
       - name: Download MP3s from Repo
         uses: actions/checkout@v4
 
-      - name: Install Ezstream, FFmpeg, and Playwright
+      - name: Install Ezstream and FFmpeg
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ezstream ffmpeg
-          pip install -q playwright
-          playwright install chromium
-
-      - name: Auto-Start Caster.fm Server
-        env:
-          CASTER_EMAIL: ${{ secrets.CASTER_EMAIL }}
-          CASTER_LOGIN_PASS: ${{ secrets.CASTER_LOGIN_PASS }}
-        run: |
-          python3 - << 'EOF'
-          import os
-          from playwright.sync_api import sync_playwright
-
-          with sync_playwright() as p:
-              browser = p.chromium.launch(headless=True)
-              page = browser.new_page(viewport={"width": 1280, "height": 900})
-              page.goto("https://caster.fm", timeout=60000)
-              
-              page.locator('input[type="email"], input[name="email"]').first.fill(os.environ["CASTER_EMAIL"])
-              pwd = page.locator('input[type="password"], input[name="password"]').first
-              pwd.fill(os.environ["CASTER_LOGIN_PASS"])
-              
-              login_btn = page.locator('button:has-text("Login"), a:has-text("Login"), input[value*="Login" i]').first
-              if login_btn.is_visible():
-                  login_btn.click()
-              else:
-                  pwd.press("Enter")
-                  
-              page.wait_for_timeout(8000)
-              print("URL after login:", page.url)
-              print("Page text snippet:", page.locator("body").inner_text()[:400].replace("\n", " | "))
-
-              # Click station name if a station list appears
-              station_link = page.locator('text="Seán Radio"').first
-              if station_link.is_visible() and not page.locator('text="Streaming Server"').is_visible():
-                  print("Clicking station card...")
-                  station_link.click()
-                  page.wait_for_timeout(5000)
-
-              start_btn = page.get_by_role("button", name="Start Server").or_(page.locator('text="Start Server"')).first
-              if start_btn.is_visible():
-                  print("Server is Offline. Clicking 'Start Server'...")
-                  start_btn.click()
-                  page.wait_for_timeout(15000)
-                  print("Start command sent!")
-              else:
-                  print("Start Server button not visible.")
-              browser.close()
-          EOF
 
       - name: Create Playlist & Config
         run: |
