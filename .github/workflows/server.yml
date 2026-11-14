@@ -1,4 +1,4 @@
-      - name: Auto-Start Caster.fm Server
+           - name: Auto-Start Caster.fm Server
         env:
           CASTER_EMAIL: ${{ secrets.CASTER_EMAIL }}
           CASTER_LOGIN_PASS: ${{ secrets.CASTER_LOGIN_PASS }}
