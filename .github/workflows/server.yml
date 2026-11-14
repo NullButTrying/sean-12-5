@@ -2,9 +2,7 @@ name: 12-7 Caster Stream
 
 on:
   schedule:
-    # Part 1: Starts every day at 08:00 GMT (8:00 AM)
     - cron: '0 8 * * *'
-    # Part 2: Takes over every day at 14:00 GMT (2:00 PM)
     - cron: '0 14 * * *'
   workflow_dispatch:
 
@@ -40,7 +38,7 @@ jobs:
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page()
-              page.goto("https://caster.fm", timeout=60000)
+              page.goto("https://cloud.caster.fm/", timeout=60000)
               
               page.locator('input[type="email"], input[name="email"]').first.fill(os.environ["CASTER_EMAIL"])
               page.locator('input[type="password"], input[name="password"]').first.fill(os.environ["CASTER_LOGIN_PASS"])
