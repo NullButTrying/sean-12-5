@@ -41,19 +41,30 @@ jobs:
               page.goto("https://cloud.caster.fm/", timeout=60000)
               
               page.locator('input[type="email"], input[name="email"]').first.fill(os.environ["CASTER_EMAIL"])
-              page.locator('input[type="password"], input[name="password"]').first.fill(os.environ["CASTER_LOGIN_PASS"])
-              page.locator('button[type="submit"], input[type="submit"]').first.click()
-              page.wait_for_timeout(6000)
-
+              pwd = page.locator('input[type="password"], input[name="password"]').first
+              pwd.fill(os.environ["CASTER_LOGIN_PASS"])
+              
+              # Click the Login button by visible text or press Enter
+              login_btn = page.locator('button:has-text("Login"), a:has-text("Login"), input[value*="Login" i]').first
+              if login_btn.is_visible():
+                  login_btn.click()
+              else:
+                  pwd.press("Enter")
+                  
+              page.wait_for_timeout(7000)
               print("Logged in, current page:", page.url)
 
+              # Look for Start Server button
               start_btn = page.locator('button:has-text("Start"), a:has-text("Start")').first
               if start_btn.is_visible():
                   print("Server is off. Clicking Start...")
                   start_btn.click()
                   page.wait_for_timeout(8000)
               else:
-                  print("Server is already running or Start button not found.")
+                  print("Start button not visible. Buttons found on page:")
+                  for btn in page.locator("button, a.btn").all_inner_texts():
+                      if btn.strip():
+                          print(" -", btn.strip())
               browser.close()
           EOF
 
