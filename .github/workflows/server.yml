@@ -2,7 +2,9 @@ name: 12-7 Caster Stream
 
 on:
   schedule:
+    # Part 1: Starts every day at 08:00 GMT (8:00 AM)
     - cron: '0 8 * * *'
+    # Part 2: Takes over every day at 14:00 GMT (2:00 PM)
     - cron: '0 14 * * *'
   workflow_dispatch:
 
