@@ -1,9 +1,12 @@
-name: 12-7 Caster Stream
+name: 24-7 Caster Stream
 
 on:
   schedule:
-    - cron: '0 8 * * *'
-    - cron: '0 14 * * *'
+    # Runs continuously in four 6-hour shifts every day
+    - cron: '0 0 * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 12 * * *'
+    - cron: '0 18 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -42,7 +45,7 @@ jobs:
               <stream>
                 <mountpoint>/${{ secrets.CASTER_MOUNT }}</mountpoint>
                 <format>MP3</format>
-                <stream_name>Automated Radio</stream_name>
+                <stream_name>Seán Radio</stream_name>
                 <stream_bitrate>96</stream_bitrate>
               </stream>
             </streams>
@@ -75,6 +78,6 @@ jobs:
         run: |
           while true; do
             ezstream -c ezstream.xml || true
-            echo "Disconnected or server waking up. Retrying in 15 seconds..."
-            sleep 15
+            echo "Disconnected. Reconnecting in 10 seconds..."
+            sleep 10
           done
