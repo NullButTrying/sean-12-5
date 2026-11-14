@@ -1,15 +1,13 @@
-name: 12-5 Caster Stream (6+6 Split)
+name: 12-7 Caster Stream (6+6 Split)
 
 on:
   schedule:
-    # Part 1: Starts Monday–Friday at 08:00 UTC
-    - cron: '0 8 * * 1-5'
-    # Part 2: Takes over Monday–Friday at 14:00 UTC (6 hours later)
-    - cron: '0 14 * * 1-5'
-  # Allows you to click "Run workflow" manually anytime to test
+    # Part 1: Runs every day at 08:00 GMT (8:00 AM)
+    - cron: '0 8 * * *'
+    # Part 2: Takes over every day at 14:00 GMT (2:00 PM)
+    - cron: '0 14 * * *'
   workflow_dispatch:
 
-# Ensures the second 6-hour job cleanly replaces the first if they overlap by a second
 concurrency:
   group: caster-radio-stream
   cancel-in-progress: true
@@ -17,21 +15,20 @@ concurrency:
 jobs:
   broadcast:
     runs-on: ubuntu-latest
-    # 358 minutes prevents hitting GitHub's hard 360-minute cutoff error
-    timeout-minutes: 358
+    timeout-minutes: 360
 
     steps:
       - name: Download MP3s from Repo
         uses: actions/checkout@v4
 
-      - name: Install Ezstream
+      - name: Install Ezstream and FFmpeg
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ezstream
+          sudo apt-get install -y -qq ezstream ffmpeg
 
       - name: Create Playlist & Config
         run: |
-          find . -type f -iname "*.mp3" > playlist.m3u
+          find "$PWD" -type f -iname "*.mp3" > playlist.m3u
           cat <<EOF > ezstream.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <ezstream>
@@ -55,18 +52,30 @@ jobs:
               <intake>
                 <type>playlist</type>
                 <filename>playlist.m3u</filename>
-                <shuffle>Yes</shuffle>
+                <shuffle>No</shuffle>
                 <stream_once>No</stream_once>
               </intake>
             </intakes>
+            <decoders>
+              <decoder>
+                <name>FFmpeg-MP3</name>
+                <program>ffmpeg -loglevel error -i @T@ -f s16le -acodec pcm_s16le -ar 44100 -ac 2 -</program>
+                <file_ext>.mp3</file_ext>
+              </decoder>
+            </decoders>
+            <encoders>
+              <encoder>
+                <name>FFmpeg-96k</name>
+                <program>ffmpeg -loglevel error -f s16le -ar 44100 -ac 2 -i - -f mp3 -b:a 96k -</program>
+                <format>MP3</format>
+              </encoder>
+            </encoders>
           </ezstream>
           EOF
 
       - name: Stream to Caster.fm
-        run: ezstream -c ezstream.xml
-
-        jobs:
-  broadcast:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-
+        run: |
+          while true; do
+            ezstream -c ezstream.xml
+            sleep 2
+          done
