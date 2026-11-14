@@ -64,3 +64,9 @@ jobs:
 
       - name: Stream to Caster.fm
         run: ezstream -c ezstream.xml
+
+        jobs:
+  broadcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
