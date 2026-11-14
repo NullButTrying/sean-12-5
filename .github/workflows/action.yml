@@ -1,9 +1,9 @@
-name: 12-5 Caster Stream (6+6 Split)
+name: 12-7 Caster Stream (Auto-Wake + 6+6 Split)
 
 on:
   schedule:
-    - cron: '0 8 * * 1-5'
-    - cron: '0 14 * * 1-5'
+    - cron: '0 8 * * *'
+    - cron: '0 14 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -13,16 +13,47 @@ concurrency:
 jobs:
   broadcast:
     runs-on: ubuntu-latest
-    timeout-minutes: 358
+    timeout-minutes: 360
 
     steps:
       - name: Download MP3s from Repo
         uses: actions/checkout@v4
 
-      - name: Install Ezstream
+      - name: Install Ezstream, FFmpeg, and Playwright
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ezstream
+          sudo apt-get install -y -qq ezstream ffmpeg
+          pip install -q playwright
+          playwright install chromium
+
+      - name: Auto-Start Caster.fm Server
+        env:
+          CASTER_EMAIL: ${{ secrets.CASTER_EMAIL }}
+          CASTER_LOGIN_PASS: ${{ secrets.CASTER_LOGIN_PASS }}
+        run: |
+          python3 - << 'EOF'
+          import os
+          from playwright.sync_api import sync_playwright
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.goto("https://caster.fm", timeout=60000)
+              page.fill('input[type="email"], input[name="email"]', os.environ["CASTER_EMAIL"])
+              page.fill('input[type="password"], input[name="password"]', os.environ["CASTER_LOGIN_PASS"])
+              page.click('button[type="submit"]')
+              page.wait_for_timeout(5000)
+
+              # Look for a Start Server button if the server is stopped
+              start_btn = page.locator('button:has-text("Start"), a:has-text("Start")').first
+              if start_btn.is_visible():
+                  print("Server is off. Clicking Start...")
+                  start_btn.click()
+                  page.wait_for_timeout(8000)
+              else:
+                  print("Server is already running or Start button not needed.")
+              browser.close()
+          EOF
 
       - name: Create Playlist & Config
         run: |
@@ -34,7 +65,6 @@ jobs:
               <server>
                 <hostname>${{ secrets.CASTER_HOST }}</hostname>
                 <port>${{ secrets.CASTER_PORT }}</port>
-                <username>source</username>
                 <password>${{ secrets.CASTER_PASS }}</password>
                 <protocol>http</protocol>
               </server>
@@ -51,13 +81,31 @@ jobs:
               <intake>
                 <type>playlist</type>
                 <filename>playlist.m3u</filename>
-                <shuffle>Yes</shuffle>
+                <shuffle>No</shuffle>
                 <stream_once>No</stream_once>
               </intake>
             </intakes>
+            <decoders>
+              <decoder>
+                <name>FFmpeg-MP3</name>
+                <program>ffmpeg -loglevel error -i @T@ -f s16le -acodec pcm_s16le -ar 44100 -ac 2 -</program>
+                <file_ext>.mp3</file_ext>
+              </decoder>
+            </decoders>
+            <encoders>
+              <encoder>
+                <name>FFmpeg-96k</name>
+                <program>ffmpeg -loglevel error -f s16le -ar 44100 -ac 2 -i - -f mp3 -b:a 96k -</program>
+                <format>MP3</format>
+              </encoder>
+            </encoders>
           </ezstream>
           EOF
-          chmod 600 ezstream.xml
 
       - name: Stream to Caster.fm
-        run: ezstream -c ezstream.xml
+        run: |
+          while true; do
+            ezstream -c ezstream.xml || true
+            echo "Disconnected or server waking up. Retrying in 15 seconds..."
+            sleep 15
+          done
