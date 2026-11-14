@@ -38,7 +38,7 @@ jobs:
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page(viewport={"width": 1280, "height": 900})
-              page.goto("https://cloud.caster.fm", timeout=60000)
+              page.goto("https://caster.fm", timeout=60000)
               
               page.locator('input[type="email"], input[name="email"]').first.fill(os.environ["CASTER_EMAIL"])
               pwd = page.locator('input[type="password"], input[name="password"]').first
@@ -50,20 +50,25 @@ jobs:
               else:
                   pwd.press("Enter")
                   
-              # Wait up to 20 seconds for the Streaming Server card to finish loading
-              page.wait_for_selector('text="Streaming Server"', timeout=20000)
-              page.wait_for_timeout(3000)
+              page.wait_for_timeout(8000)
+              print("URL after login:", page.url)
+              print("Page text snippet:", page.locator("body").inner_text()[:400].replace("\n", " | "))
 
-              # Target the exact "Start Server" button
+              # Click station name if a station list appears
+              station_link = page.locator('text="Seán Radio"').first
+              if station_link.is_visible() and not page.locator('text="Streaming Server"').is_visible():
+                  print("Clicking station card...")
+                  station_link.click()
+                  page.wait_for_timeout(5000)
+
               start_btn = page.get_by_role("button", name="Start Server").or_(page.locator('text="Start Server"')).first
               if start_btn.is_visible():
                   print("Server is Offline. Clicking 'Start Server'...")
                   start_btn.click()
-                  # Wait 15 seconds for Icecast server to boot up
                   page.wait_for_timeout(15000)
                   print("Start command sent!")
               else:
-                  print("Server appears to be already running.")
+                  print("Start Server button not visible.")
               browser.close()
           EOF
 
