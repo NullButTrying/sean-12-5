@@ -37,34 +37,33 @@ jobs:
 
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
-              page = browser.new_page()
-              page.goto("https://cloud.caster.fm/", timeout=60000)
+              page = browser.new_page(viewport={"width": 1280, "height": 900})
+              page.goto("https://caster.fm", timeout=60000)
               
               page.locator('input[type="email"], input[name="email"]').first.fill(os.environ["CASTER_EMAIL"])
               pwd = page.locator('input[type="password"], input[name="password"]').first
               pwd.fill(os.environ["CASTER_LOGIN_PASS"])
               
-              # Click the Login button by visible text or press Enter
               login_btn = page.locator('button:has-text("Login"), a:has-text("Login"), input[value*="Login" i]').first
               if login_btn.is_visible():
                   login_btn.click()
               else:
                   pwd.press("Enter")
                   
-              page.wait_for_timeout(7000)
-              print("Logged in, current page:", page.url)
+              # Wait up to 20 seconds for the Streaming Server card to finish loading
+              page.wait_for_selector('text="Streaming Server"', timeout=20000)
+              page.wait_for_timeout(3000)
 
-              # Look for Start Server button
-              start_btn = page.locator('button:has-text("Start"), a:has-text("Start")').first
+              # Target the exact "Start Server" button
+              start_btn = page.get_by_role("button", name="Start Server").or_(page.locator('text="Start Server"')).first
               if start_btn.is_visible():
-                  print("Server is off. Clicking Start...")
+                  print("Server is Offline. Clicking 'Start Server'...")
                   start_btn.click()
-                  page.wait_for_timeout(8000)
+                  # Wait 15 seconds for Icecast server to boot up
+                  page.wait_for_timeout(15000)
+                  print("Start command sent!")
               else:
-                  print("Start button not visible. Buttons found on page:")
-                  for btn in page.locator("button, a.btn").all_inner_texts():
-                      if btn.strip():
-                          print(" -", btn.strip())
+                  print("Server appears to be already running.")
               browser.close()
           EOF
 
