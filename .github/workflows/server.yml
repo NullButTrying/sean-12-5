@@ -19,6 +19,38 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      - name: Boot Caster.fm Streaming Server
+        env:
+          TOKEN: ${{ secrets.CASTER_PRIVATE_TOKEN }}
+        run: |
+          SUBDOMAIN="hub.cloud"
+          DOMAIN="caster.fm"
+          ENDPOINT="private/server/start"
+          URL="https://${SUBDOMAIN}.${DOMAIN}/${ENDPOINT}"
+          
+          echo "Checking/booting server at: $URL"
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Accept: application/json" \
+            -H "Authorization: Bearer $TOKEN" \
+            "$URL")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -eq 200 ]; then
+            echo "Server started successfully. Waiting 10s for Icecast to initialize..."
+            sleep 10
+          elif [ "$http_code" -eq 406 ]; then
+            echo "Server is already booted and running."
+          else
+            echo "Failed to start server."
+            exit 1
+          fi
+
       - name: Download MP3s from Repo
         uses: actions/checkout@v4
 
@@ -74,8 +106,30 @@ jobs:
           </ezstream>
           EOF
 
-      - name: Stream to Caster.fm
+      - name: Stream to Caster.fm (with 8AM & 2PM GMT Server Check)
+        env:
+          TOKEN: ${{ secrets.CASTER_PRIVATE_TOKEN }}
         run: |
+          # Background watcher to ensure server is booted at 08:00 and 14:00 GMT
+          (
+            SUBDOMAIN="hub.cloud"
+            DOMAIN="caster.fm"
+            ENDPOINT="private/server/start"
+            URL="https://${SUBDOMAIN}.${DOMAIN}/${ENDPOINT}"
+            while true; do
+              current_hm=$(date -u +"%H:%M")
+              if [ "$current_hm" = "08:00" ] || [ "$current_hm" = "14:00" ]; then
+                echo "[$current_hm GMT] Verifying Caster.fm server status..."
+                curl -s -X POST \
+                  -H "Accept: application/json" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  "$URL" > /dev/null
+                sleep 65
+              fi
+              sleep 20
+            done
+          ) &
+
           while true; do
             ezstream -c ezstream.xml || true
             echo "Disconnected. Reconnecting in 10 seconds..."
